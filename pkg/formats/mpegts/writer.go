@@ -28,6 +28,14 @@ const (
 	dtsPCRDiff = (90000 / 10)
 )
 
+// pcrBase returns the PCR corresponding to a timestamp.
+// It is clamped to zero since streams re-anchored to a zero-based time base
+// (e.g. remuxed HLS segments) would otherwise produce a negative PCR that
+// wraps around the 33-bit PCR field.
+func pcrBase(ts int64) int64 {
+	return max(ts-dtsPCRDiff, 0)
+}
+
 func opusMarshalSize(packets [][]byte) int {
 	n := 0
 	for _, packet := range packets {
@@ -364,7 +372,7 @@ func (w *Writer) writeVideo(
 				af = &astits.PacketAdaptationField{}
 			}
 			af.HasPCR = true
-			af.PCR = &astits.ClockReference{Base: dts - dtsPCRDiff}
+			af.PCR = &astits.ClockReference{Base: pcrBase(dts)}
 			w.pcrCounter = 3
 		}
 		w.pcrCounter--
@@ -411,7 +419,7 @@ func (w *Writer) writeAudio(track *Track, pts int64, data []byte) error {
 	if track.isLeading {
 		if w.pcrCounter == 0 {
 			af.HasPCR = true
-			af.PCR = &astits.ClockReference{Base: pts - dtsPCRDiff}
+			af.PCR = &astits.ClockReference{Base: pcrBase(pts)}
 			w.pcrCounter = 3
 		}
 		w.pcrCounter--
@@ -449,7 +457,7 @@ func (w *Writer) writeData(track *Track, hasPTS bool, pts int64, streamID uint8,
 	if track.isLeading {
 		if w.pcrCounter == 0 {
 			af.HasPCR = true
-			af.PCR = &astits.ClockReference{Base: pts - dtsPCRDiff}
+			af.PCR = &astits.ClockReference{Base: pcrBase(pts)}
 			w.pcrCounter = 3
 		}
 		w.pcrCounter--
